@@ -40,6 +40,7 @@ const Dashboard = () => {
   const [growthLoading, setGrowthLoading] = useState(true);
   const [growthRange, setGrowthRange] = useState("ALL");
   const [selectedGrowthPoint, setSelectedGrowthPoint] = useState(null);
+  const [growthViewMode, setGrowthViewMode] = useState("TOTAL"); // "TOTAL" or "COMPARE"
 
   const syncZerodha = async () => {
     const btn = document.getElementById("sync-btn");
@@ -140,7 +141,23 @@ const Dashboard = () => {
       startDate = new Date(d.setFullYear(d.getFullYear() - 1));
     }
 
-    return growthData.filter((d) => new Date(d.date) >= startDate);
+    return growthData
+      .map((d) => {
+        const breakdown = d.assetsBreakdown || [];
+        return {
+          ...d,
+          stocksValue: breakdown
+            .filter((a) => a.type === "STOCK")
+            .reduce((sum, a) => sum + a.value, 0),
+          goldValue: breakdown
+            .filter((a) => a.type === "GOLD")
+            .reduce((sum, a) => sum + a.value, 0),
+          mfValue: breakdown
+            .filter((a) => a.type === "MF")
+            .reduce((sum, a) => sum + a.value, 0),
+        };
+      })
+      .filter((d) => new Date(d.date) >= startDate);
   }, [growthData, growthRange]);
 
   if (loading && !data)
@@ -502,20 +519,45 @@ const Dashboard = () => {
               </p>
             </div>
 
-            <div className="flex gap-2 bg-gray-100 p-1 rounded-xl">
-              {["1M", "3M", "6M", "1Y", "ALL"].map((r) => (
+            <div className="flex flex-wrap gap-4 items-center">
+              <div className="flex gap-2 bg-gray-100 p-1 rounded-xl">
                 <button
-                  key={r}
-                  onClick={() => setGrowthRange(r)}
+                  onClick={() => setGrowthViewMode("TOTAL")}
                   className={`px-4 py-2 rounded-lg text-sm font-bold transition ${
-                    growthRange === r
+                    growthViewMode === "TOTAL"
                       ? "bg-white text-blue-600 shadow-sm"
                       : "text-gray-500 hover:text-gray-900"
                   }`}
                 >
-                  {r}
+                  Overall
                 </button>
-              ))}
+                <button
+                  onClick={() => setGrowthViewMode("COMPARE")}
+                  className={`px-4 py-2 rounded-lg text-sm font-bold transition ${
+                    growthViewMode === "COMPARE"
+                      ? "bg-white text-blue-600 shadow-sm"
+                      : "text-gray-500 hover:text-gray-900"
+                  }`}
+                >
+                  Compare Assets
+                </button>
+              </div>
+
+              <div className="flex gap-2 bg-gray-100 p-1 rounded-xl">
+                {["1M", "3M", "6M", "1Y", "ALL"].map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => setGrowthRange(r)}
+                    className={`px-4 py-2 rounded-lg text-sm font-bold transition ${
+                      growthRange === r
+                        ? "bg-white text-blue-600 shadow-sm"
+                        : "text-gray-500 hover:text-gray-900"
+                    }`}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -552,6 +594,24 @@ const Dashboard = () => {
                     >
                       <stop offset="5%" stopColor="#94a3b8" stopOpacity={0.1} />
                       <stop offset="95%" stopColor="#94a3b8" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient
+                      id="colorStocks"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.1} />
+                      <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="colorGold" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#eab308" stopOpacity={0.1} />
+                      <stop offset="95%" stopColor="#eab308" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="colorMF" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#22c55e" stopOpacity={0.1} />
+                      <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid
@@ -603,27 +663,64 @@ const Dashboard = () => {
                       }}
                     />
                   )}
-                  <Area
-                    type="monotone"
-                    dataKey="totalValue"
-                    name="Total Portfolio Value"
-                    stroke="#3b82f6"
-                    strokeWidth={3}
-                    fillOpacity={1}
-                    fill="url(#colorValue)"
-                    animationDuration={1500}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="investedValue"
-                    name="Amount Invested"
-                    stroke="#94a3b8"
-                    strokeWidth={2}
-                    strokeDasharray="5 5"
-                    fillOpacity={1}
-                    fill="url(#colorInvested)"
-                    animationDuration={1000}
-                  />
+                  {growthViewMode === "TOTAL" ? (
+                    <>
+                      <Area
+                        type="monotone"
+                        dataKey="totalValue"
+                        name="Total Portfolio Value"
+                        stroke="#3b82f6"
+                        strokeWidth={3}
+                        fillOpacity={1}
+                        fill="url(#colorValue)"
+                        animationDuration={1500}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="investedValue"
+                        name="Amount Invested"
+                        stroke="#94a3b8"
+                        strokeWidth={2}
+                        strokeDasharray="5 5"
+                        fillOpacity={1}
+                        fill="url(#colorInvested)"
+                        animationDuration={1000}
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <Area
+                        type="monotone"
+                        dataKey="stocksValue"
+                        name="Stocks"
+                        stroke="#4f46e5"
+                        strokeWidth={2}
+                        fillOpacity={1}
+                        fill="url(#colorStocks)"
+                        animationDuration={1000}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="mfValue"
+                        name="Mutual Funds"
+                        stroke="#22c55e"
+                        strokeWidth={2}
+                        fillOpacity={1}
+                        fill="url(#colorMF)"
+                        animationDuration={1000}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="goldValue"
+                        name="Gold"
+                        stroke="#eab308"
+                        strokeWidth={2}
+                        fillOpacity={1}
+                        fill="url(#colorGold)"
+                        animationDuration={1000}
+                      />
+                    </>
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>
