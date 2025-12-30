@@ -1,16 +1,40 @@
-# React + Vite
+# 🖥️ StockConnect Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This is the frontend application for StockConnect, built with **React 19** and **Vite**.
 
-Currently, two official plugins are available:
+## 🚀 Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Dashboard**: Overview of holdings.
+- **Growth Analysis**: Time-series charts for portfolio performance.
+- **Gold Management**: Dedicated UI for tracking gold.
+- **Responsive Design**: Fully responsive using Tailwind CSS.
+- **Dynamic Icons**: Powered by Lucide React.
 
-## React Compiler
+## 🛠️ Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **React 19**
+- **Vite** (Build Tool)
+- **Tailwind CSS** (Styling)
+- **Recharts** (Data Visualization)
+- **Axios** (API Requests)
+- **React Router 7** (Routing)
 
-## Expanding the ESLint configuration
+## 📦 Installation
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```bash
+npm install
+```
+
+## 🏃 Running the Development Server
+
+```bash
+npm run dev
+```
+
+## 🏗️ Building for Production
+
+```bash
+npm run build
+```
+
+The output will be in the `dist/` directory.
