@@ -21,6 +21,7 @@ app.use("/api/transactions", require("./routes/transactionRoutes"));
 app.use("/api/zerodha", require("./routes/zerodhaRoutes"));
 app.use("/api/gold", require("./routes/goldRoutes"));
 app.use("/api/portfolio", require("./routes/portfolioRoutes"));
+app.use("/api/analysis", require("./routes/analysisRoutes"));
 
 // Handle Redirect from Zerodha (Matches user's verified config)
 const { handleDirectRedirect } = require("./controllers/zerodhaController");

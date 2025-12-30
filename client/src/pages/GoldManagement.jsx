@@ -15,6 +15,7 @@ const GoldManagement = () => {
     totalGrams: "",
     investedValue: "",
     pricePerGram: "",
+    purchaseDate: new Date().toISOString().split("T")[0],
   });
 
   const fetchGoldHoldings = async () => {
@@ -40,6 +41,9 @@ const GoldManagement = () => {
         totalGrams: gold.quantity.toString(),
         investedValue: gold.investedValue.toString(),
         pricePerGram: gold.averagePrice.toString(),
+        purchaseDate: gold.lastUpdated
+          ? new Date(gold.lastUpdated).toISOString().split("T")[0]
+          : new Date().toISOString().split("T")[0],
       });
     } else {
       setEditingGold(null);
@@ -48,6 +52,7 @@ const GoldManagement = () => {
         totalGrams: "",
         investedValue: "",
         pricePerGram: "",
+        purchaseDate: new Date().toISOString().split("T")[0],
       });
     }
     setInputMode("investedValue");
@@ -63,6 +68,7 @@ const GoldManagement = () => {
       totalGrams: "",
       investedValue: "",
       pricePerGram: "",
+      purchaseDate: new Date().toISOString().split("T")[0],
     });
   };
 
@@ -73,6 +79,7 @@ const GoldManagement = () => {
       const payload = {
         name: formData.name || undefined,
         totalGrams: parseFloat(formData.totalGrams),
+        purchaseDate: formData.purchaseDate,
       };
 
       // Send either investedValue or pricePerGram based on input mode
@@ -190,6 +197,7 @@ const GoldManagement = () => {
                 </th>
                 <th className="p-4 font-semibold text-right">Invested Value</th>
                 <th className="p-4 font-semibold text-right">Avg Price/gram</th>
+                <th className="p-4 font-semibold text-right">Purchase Date</th>
                 <th className="p-4 font-semibold text-right">Source</th>
                 <th className="p-4 font-semibold text-right">Actions</th>
               </tr>
@@ -206,6 +214,13 @@ const GoldManagement = () => {
                   </td>
                   <td className="p-4 text-right text-gray-600">
                     ₹{gold.averagePrice.toFixed(2)}
+                  </td>
+                  <td className="p-4 text-right text-gray-600">
+                    {new Date(gold.lastUpdated).toLocaleDateString("en-IN", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    })}
                   </td>
                   <td className="p-4 text-right">
                     <span className="text-xs px-2 py-1 rounded-full font-medium bg-yellow-100 text-yellow-800">
@@ -409,6 +424,21 @@ const GoldManagement = () => {
                   />
                 </div>
               )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Date of Investment
+                </label>
+                <input
+                  type="date"
+                  value={formData.purchaseDate}
+                  onChange={(e) =>
+                    setFormData({ ...formData, purchaseDate: e.target.value })
+                  }
+                  required
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none transition"
+                />
+              </div>
 
               {/* Calculation Display */}
               {formData.totalGrams &&

@@ -2,10 +2,30 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import SummaryCard from "../components/SummaryCard";
-import { RefreshCw, Wallet, TrendingUp, DollarSign } from "lucide-react";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Legend,
+  ReferenceLine,
+} from "recharts";
+import {
+  RefreshCw,
+  Wallet,
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  ArrowLeft,
+} from "lucide-react";
 
-const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042"];
+const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6"];
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -13,8 +33,13 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [assetFilter, setAssetFilter] = useState("ALL");
-
   const [lastUpdated, setLastUpdated] = useState(null);
+
+  // Growth Analysis State
+  const [growthData, setGrowthData] = useState([]);
+  const [growthLoading, setGrowthLoading] = useState(true);
+  const [growthRange, setGrowthRange] = useState("ALL");
+  const [selectedGrowthPoint, setSelectedGrowthPoint] = useState(null);
 
   const syncZerodha = async () => {
     const btn = document.getElementById("sync-btn");
@@ -43,8 +68,24 @@ const Dashboard = () => {
     }
   };
 
+  const fetchGrowthData = async () => {
+    setGrowthLoading(true);
+    try {
+      const res = await api.get("/analysis/growth");
+      setGrowthData(res.data.data);
+      if (res.data.data.length > 0) {
+        setSelectedGrowthPoint(res.data.data[res.data.data.length - 1]);
+      }
+    } catch (err) {
+      console.error("Failed to load growth data:", err);
+    } finally {
+      setGrowthLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchData();
+    fetchGrowthData();
     // Auto-refresh every 60 seconds
     const interval = setInterval(fetchData, 60000);
     return () => clearInterval(interval);
@@ -57,7 +98,6 @@ const Dashboard = () => {
     return data.assets.filter((asset) => asset.type === assetFilter);
   }, [data, assetFilter]);
 
-  // Prepare chart data based on filtered assets - moved before conditional returns
   const chartData = React.useMemo(() => {
     return [
       {
@@ -80,6 +120,28 @@ const Dashboard = () => {
       },
     ].filter((d) => d.value > 0);
   }, [filteredAssets]);
+
+  const filteredGrowthData = React.useMemo(() => {
+    if (!growthData.length) return [];
+    const now = new Date();
+    let startDate = new Date(0);
+
+    if (growthRange === "1M") {
+      const d = new Date(now);
+      startDate = new Date(d.setMonth(d.getMonth() - 1));
+    } else if (growthRange === "3M") {
+      const d = new Date(now);
+      startDate = new Date(d.setMonth(d.getMonth() - 3));
+    } else if (growthRange === "6M") {
+      const d = new Date(now);
+      startDate = new Date(d.setMonth(d.getMonth() - 6));
+    } else if (growthRange === "1Y") {
+      const d = new Date(now);
+      startDate = new Date(d.setFullYear(d.getFullYear() - 1));
+    }
+
+    return growthData.filter((d) => new Date(d.date) >= startDate);
+  }, [growthData, growthRange]);
 
   if (loading && !data)
     return (
@@ -194,7 +256,10 @@ const Dashboard = () => {
             {summary.isZerodhaConnected ? "Re-Sync" : "Sync Zerodha"}
           </button>
           <button
-            onClick={fetchData}
+            onClick={() => {
+              fetchData();
+              fetchGrowthData();
+            }}
             className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600 transition shadow-sm"
           >
             <RefreshCw size={20} />
@@ -422,6 +487,227 @@ const Dashboard = () => {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Integrated Growth Analysis Section */}
+      <div className="mt-12">
+        <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+            <div>
+              <h2 className="text-xl font-bold text-gray-800">
+                Growth Analysis
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Portfolio value trend over time
+              </p>
+            </div>
+
+            <div className="flex gap-2 bg-gray-100 p-1 rounded-xl">
+              {["1M", "3M", "6M", "1Y", "ALL"].map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setGrowthRange(r)}
+                  className={`px-4 py-2 rounded-lg text-sm font-bold transition ${
+                    growthRange === r
+                      ? "bg-white text-blue-600 shadow-sm"
+                      : "text-gray-500 hover:text-gray-900"
+                  }`}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {growthLoading ? (
+            <div className="h-[400px] w-full bg-gray-50 rounded-2xl animate-pulse"></div>
+          ) : (
+            <div className="h-[400px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart
+                  data={filteredGrowthData}
+                  onClick={(e) => {
+                    if (e && e.activePayload && e.activePayload.length > 0) {
+                      setSelectedGrowthPoint(e.activePayload[0].payload);
+                    } else if (e && e.activeLabel) {
+                      const point = filteredGrowthData.find(
+                        (d) => d.date === e.activeLabel
+                      );
+                      if (point) setSelectedGrowthPoint(point);
+                    }
+                  }}
+                  style={{ cursor: "pointer" }}
+                >
+                  <defs>
+                    <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1} />
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient
+                      id="colorInvested"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop offset="5%" stopColor="#94a3b8" stopOpacity={0.1} />
+                      <stop offset="95%" stopColor="#94a3b8" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                    stroke="#f1f5f9"
+                  />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 12, fill: "#94a3b8" }}
+                    axisLine={false}
+                    tickLine={false}
+                    minTickGap={30}
+                    tickFormatter={(date) => {
+                      const d = new Date(date);
+                      return d.toLocaleDateString("en-IN", {
+                        month: "short",
+                        day: "numeric",
+                      });
+                    }}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 12, fill: "#94a3b8" }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(val) => `₹${(val / 1000).toFixed(0)}k`}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: "16px",
+                      border: "none",
+                      boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
+                      padding: "12px",
+                    }}
+                    formatter={(value) => [`₹${value.toLocaleString()}`, ""]}
+                  />
+                  <Legend verticalAlign="top" height={36} />
+                  {selectedGrowthPoint && (
+                    <ReferenceLine
+                      x={selectedGrowthPoint.date}
+                      stroke="#3b82f6"
+                      strokeDasharray="3 3"
+                      label={{
+                        value: "Locked",
+                        position: "top",
+                        fill: "#3b82f6",
+                        fontSize: 10,
+                        fontWeight: "bold",
+                      }}
+                    />
+                  )}
+                  <Area
+                    type="monotone"
+                    dataKey="totalValue"
+                    name="Total Portfolio Value"
+                    stroke="#3b82f6"
+                    strokeWidth={3}
+                    fillOpacity={1}
+                    fill="url(#colorValue)"
+                    animationDuration={1500}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="investedValue"
+                    name="Amount Invested"
+                    stroke="#94a3b8"
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    fillOpacity={1}
+                    fill="url(#colorInvested)"
+                    animationDuration={1000}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+
+        {/* Data Debugger Integrated */}
+        {selectedGrowthPoint && !growthLoading && (
+          <div className="mt-8 bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden mb-12">
+            <div className="p-6 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <span className="p-2 bg-blue-100 text-blue-600 rounded-lg">
+                    <DollarSign size={18} />
+                  </span>
+                  Data Debugger:{" "}
+                  {new Date(selectedGrowthPoint.date).toLocaleDateString(
+                    "en-IN",
+                    {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    }
+                  )}
+                </h2>
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-gray-400 uppercase font-medium tracking-wider">
+                  Total Value
+                </div>
+                <div className="text-xl font-black text-blue-600">
+                  ₹{selectedGrowthPoint.totalValue.toLocaleString()}
+                </div>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-gray-50/50 text-gray-400 text-xs font-bold uppercase tracking-widest">
+                    <th className="px-6 py-4">Asset</th>
+                    <th className="px-6 py-4 text-center">Qty</th>
+                    <th className="px-6 py-4 text-right">Bought Price</th>
+                    <th className="px-6 py-4 text-right">Hist. Price</th>
+                    <th className="px-6 py-4 text-right">Holding Value</th>
+                    <th className="px-6 py-4 text-right">Invested Value</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {selectedGrowthPoint.assetsBreakdown?.map((asset, idx) => (
+                    <tr
+                      key={idx}
+                      className="hover:bg-blue-50/30 transition-colors"
+                    >
+                      <td className="px-6 py-4">
+                        <div className="font-bold text-gray-900">
+                          {asset.name}
+                        </div>
+                        <div className="text-[10px] text-gray-400 font-medium">
+                          {asset.symbol} • {asset.type}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-center font-mono text-xs text-gray-600">
+                        {asset.quantity.toFixed(3)}
+                      </td>
+                      <td className="px-6 py-4 text-right font-mono text-xs text-gray-600">
+                        ₹{asset.avgPrice?.toLocaleString() || "0"}
+                      </td>
+                      <td className="px-6 py-4 text-right font-mono text-xs text-gray-600">
+                        ₹{asset.price.toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 text-right font-bold text-gray-900">
+                        ₹{asset.value.toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 text-right font-medium text-gray-500">
+                        ₹{asset.invested.toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,16 +1,12 @@
 const Asset = require("../models/Asset");
+const Transaction = require("../models/Transaction");
 
 // Constant symbol for PhonePe Gold to ensure singleton record per user (for now)
-// If we want to track separate transactions, we would use the Transaction model.
-// For the Dashboard view, we want the aggregated Asset state.
 const GOLD_SYMBOL = "DIGITAL_GOLD_PHONEPE";
 
 // @desc    Get Gold Holdings
-// @route   GET /api/gold
-// @access  Public
 const getGoldHoldings = async (req, res) => {
   try {
-    // Get all gold holdings regardless of source
     const goldAssets = await Asset.find({ type: "GOLD" });
     res.json(goldAssets);
   } catch (error) {
@@ -19,13 +15,11 @@ const getGoldHoldings = async (req, res) => {
 };
 
 // @desc    Manually Add Gold Holding
-// @route   POST /api/gold
-// @access  Public
 const updateGoldHolding = async (req, res) => {
   try {
-    const { totalGrams, investedValue, name, pricePerGram } = req.body;
+    const { totalGrams, investedValue, name, pricePerGram, purchaseDate } =
+      req.body;
 
-    // Validate that we have either investedValue or pricePerGram
     if (totalGrams === undefined) {
       return res.status(400).json({ message: "Please provide totalGrams" });
     }
@@ -37,37 +31,23 @@ const updateGoldHolding = async (req, res) => {
     }
 
     const quantity = parseFloat(totalGrams);
-
     if (isNaN(quantity) || quantity < 0) {
       return res.status(400).json({ message: "Invalid quantity provided" });
     }
 
     let value, averagePrice;
-
-    // If pricePerGram is provided, calculate investedValue from it
     if (pricePerGram !== undefined) {
       averagePrice = parseFloat(pricePerGram);
-      if (isNaN(averagePrice) || averagePrice < 0) {
-        return res
-          .status(400)
-          .json({ message: "Invalid pricePerGram provided" });
-      }
       value = quantity * averagePrice;
     } else {
-      // Otherwise, calculate averagePrice from investedValue
       value = parseFloat(investedValue);
-      if (isNaN(value) || value < 0) {
-        return res
-          .status(400)
-          .json({ message: "Invalid investedValue provided" });
-      }
       averagePrice = quantity > 0 ? value / quantity : 0;
     }
 
-    // Create a new gold holding with a unique symbol
     const goldName = name || "Manual Gold";
     const symbol = `GOLD_${Date.now()}`;
 
+    // Create Asset
     const newAsset = await Asset.create({
       symbol: symbol,
       name: goldName,
@@ -76,11 +56,20 @@ const updateGoldHolding = async (req, res) => {
       quantity: quantity,
       investedValue: value,
       averagePrice: averagePrice,
-      lastUpdated: Date.now(),
+      lastUpdated: purchaseDate || Date.now(),
+    });
+
+    // Create BUY Transaction
+    await Transaction.create({
+      asset: newAsset._id,
+      type: "BUY",
+      quantity: quantity,
+      price: averagePrice,
+      date: purchaseDate || Date.now(),
     });
 
     res.status(201).json({
-      message: "Gold holding added successfully",
+      message: "Gold holding and transaction added successfully",
       data: newAsset,
     });
   } catch (error) {
@@ -89,49 +78,24 @@ const updateGoldHolding = async (req, res) => {
 };
 
 // @desc    Edit/Update a specific Gold Holding by ID
-// @route   PUT /api/gold/:id
-// @access  Public
 const editGoldHolding = async (req, res) => {
   try {
     const { id } = req.params;
-    const { totalGrams, investedValue, name, pricePerGram } = req.body;
+    const { totalGrams, investedValue, name, pricePerGram, purchaseDate } =
+      req.body;
 
-    // Validate that we have either investedValue or pricePerGram
     if (totalGrams === undefined) {
       return res.status(400).json({ message: "Please provide totalGrams" });
     }
 
-    if (investedValue === undefined && pricePerGram === undefined) {
-      return res.status(400).json({
-        message: "Please provide either investedValue or pricePerGram",
-      });
-    }
-
     const quantity = parseFloat(totalGrams);
-
-    if (isNaN(quantity) || quantity < 0) {
-      return res.status(400).json({ message: "Invalid quantity provided" });
-    }
-
     let value, averagePrice;
 
-    // If pricePerGram is provided, calculate investedValue from it
     if (pricePerGram !== undefined) {
       averagePrice = parseFloat(pricePerGram);
-      if (isNaN(averagePrice) || averagePrice < 0) {
-        return res
-          .status(400)
-          .json({ message: "Invalid pricePerGram provided" });
-      }
       value = quantity * averagePrice;
     } else {
-      // Otherwise, calculate averagePrice from investedValue
       value = parseFloat(investedValue);
-      if (isNaN(value) || value < 0) {
-        return res
-          .status(400)
-          .json({ message: "Invalid investedValue provided" });
-      }
       averagePrice = quantity > 0 ? value / quantity : 0;
     }
 
@@ -139,13 +103,10 @@ const editGoldHolding = async (req, res) => {
       quantity: quantity,
       investedValue: value,
       averagePrice: averagePrice,
-      lastUpdated: Date.now(),
+      lastUpdated: purchaseDate || Date.now(),
     };
 
-    // If name is provided, update it
-    if (name) {
-      updateData.name = name;
-    }
+    if (name) updateData.name = name;
 
     const updatedAsset = await Asset.findByIdAndUpdate(id, updateData, {
       new: true,
@@ -155,8 +116,20 @@ const editGoldHolding = async (req, res) => {
       return res.status(404).json({ message: "Gold holding not found" });
     }
 
+    // Update corresponding Transaction
+    // Since it's a manual asset, we expect one primary BUY transaction
+    await Transaction.findOneAndUpdate(
+      { asset: id, type: "BUY" },
+      {
+        quantity: quantity,
+        price: averagePrice,
+        date: purchaseDate || Date.now(),
+      },
+      { upsert: true } // Create if doesn't exist for some reason
+    );
+
     res.status(200).json({
-      message: "Gold holding updated successfully",
+      message: "Gold holding and transaction updated successfully",
       data: updatedAsset,
     });
   } catch (error) {
@@ -165,11 +138,12 @@ const editGoldHolding = async (req, res) => {
 };
 
 // @desc    Delete a Gold Holding by ID
-// @route   DELETE /api/gold/:id
-// @access  Public
 const deleteGoldHolding = async (req, res) => {
   try {
     const { id } = req.params;
+
+    // Delete associated transactions first
+    await Transaction.deleteMany({ asset: id });
 
     const deletedAsset = await Asset.findByIdAndDelete(id);
 
@@ -178,7 +152,7 @@ const deleteGoldHolding = async (req, res) => {
     }
 
     res.status(200).json({
-      message: "Gold holding deleted successfully",
+      message: "Gold holding and transactions deleted successfully",
       data: deletedAsset,
     });
   } catch (error) {
